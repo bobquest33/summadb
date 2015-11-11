@@ -16,14 +16,14 @@ const (
 	NOTHING kind = 0
 )
 
-type prepared map[string]op
+type transaction map[string]op
 type op struct {
 	kind kind
 	val  []byte
 }
 
-func prepare(p prepared, kind kind, path string, val []byte) {
-	p[path] = op{
+func prepare(txn transaction, kind kind, path string, val []byte) {
+	txn[path] = op{
 		kind: kind,
 		val:  val,
 	}
@@ -33,16 +33,16 @@ func prepare(p prepared, kind kind, path string, val []byte) {
 	pathKeys := splitKeys(path)
 	for i := range pathKeys {
 		parentKey := joinKeys(pathKeys[:i])
-		if _, ok := p[parentKey]; !ok {
-			p[parentKey] = op{kind: NOTHING}
+		if _, ok := txn[parentKey]; !ok {
+			txn[parentKey] = op{kind: NOTHING}
 		}
 	}
 }
 
-func commit(db *sublevel.Sublevel, prepared prepared) error {
+func commit(db *sublevel.Sublevel, txn transaction) error {
 	batch := db.NewBatch()
 
-	for path, op := range prepared {
+	for path, op := range txn {
 		val := op.val
 		bytepath := []byte(path)
 		if op.kind == SAVE {
@@ -93,7 +93,7 @@ func commit(db *sublevel.Sublevel, prepared prepared) error {
 		}
 
 		/* there's no need to bump parent revs here, since all the parents were already
-		   added to the prepared map */
+		   added to the txn map */
 	}
 
 	err := db.Write(batch, nil)

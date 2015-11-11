@@ -36,3 +36,17 @@ func splitKeys(path string) []string {
 func joinKeys(keys []string) string {
 	return "/" + strings.Join(keys, "/")
 }
+
+func arrayPath(path string, index int) string {
+	return path + fmt.Sprintf("/_array[%d]", index)
+}
+
+func intToIndexableString(n int) string {
+	sc := fmt.Sprintf("%e", float64(n))
+	parts := strings.Split(sc, "e+")
+	return parts[1] + "-" + parts[0]
+}
+
+func indexableStringToInt(i string) int {
+	return 0
+}
