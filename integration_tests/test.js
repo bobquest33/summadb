@@ -7,7 +7,8 @@ if (typeof window == 'undefined') {
 }
 
 var local
-var summa = "http://spooner.alhur.es:5000/subdb"
+var summaroot = "http://spooner.alhur.es:5000"
+var summa = `${summaroot}/subdb`
 
 const value = v => Object({_val: v})
 
@@ -16,11 +17,11 @@ describe('integration', function () {
 
   before(() => {
     return Promise.resolve().then(() => {
-      return fetch(summa + '/docid').then(r => r.json())
-    }).then(function (doc) {
-      return fetch(summa + '/docid?rev=' + doc._rev, {method: 'DELETE'})
-    }).catch(() => {
-       // no need to remove
+      return fetch(summaroot + '/_destroy', {method: 'POST', headers: (() => {
+        var h = new Headers()
+        h.append('Summa-Admin', 'true')
+        return h
+      })(), mode: 'cors'})
     }).then(() => {
       return new PouchDB("summadb-test")
     }).then(db => {
