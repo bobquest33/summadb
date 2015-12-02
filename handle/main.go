@@ -1,6 +1,8 @@
 package handle
 
 import (
+	"net/http"
+
 	"github.com/carbocation/interpose"
 	"github.com/carbocation/interpose/adaptors"
 	"github.com/gorilla/mux"
@@ -15,27 +17,36 @@ func BuildHTTPMux() *interpose.Middleware {
 	//	"STARTTIME":    settings.STARTTIME,
 	//}).Info("starting database server.")
 
-	// middleware
-	middle := interpose.New()
-	middle.Use(setCommonVariables)
-	middle.Use(adaptors.FromNegroni(cors.New(cors.Options{
+	master := interpose.New()
+	router := mux.NewRouter()
+	master.UseHandler(router)
+
+	// special database actions -- different context, no CORS
+	// matches if request comes with a special header
+	actionsMiddle := interpose.New()
+	actions := mux.NewRouter()
+	actions.HandleFunc("/_destroy", Destroy).Methods("POST")
+	actionsMiddle.UseHandler(actions)
+	router.Headers("Summadb-Admin", "true").Handler(actionsMiddle)
+
+	// normal requests -- matches everything
+	normalMiddle := interpose.New()
+	normal := mux.NewRouter()
+	normalMiddle.Use(setCommonVariables)
+	normalMiddle.Use(adaptors.FromNegroni(cors.New(cors.Options{
 		// CORS
 		AllowedOrigins:   []string{"*"},
 		AllowedMethods:   []string{"GET", "POST", "PUT", "PATCH", "DELETE"},
 		AllowedHeaders:   []string{"Content-Type", "Accept", "If-Match"},
 		AllowCredentials: true,
 	})))
+	normal.HandleFunc("/{path:.*}", Get).Methods("GET")
+	normal.HandleFunc("/{path:.*}", Put).Methods("PUT")
+	normal.HandleFunc("/{path:.*}", Patch).Methods("PATCH")
+	normal.HandleFunc("/{path:.*}", Delete).Methods("DELETE")
+	normal.HandleFunc("/{path:.*}", Post).Methods("POST")
+	normalMiddle.UseHandler(normal)
+	router.MatcherFunc(func(_ *http.Request, _ *mux.RouteMatch) bool { return true }).Handler(normalMiddle)
 
-	// router
-	router := mux.NewRouter()
-	middle.UseHandler(router)
-
-	// create, update, delete, view values
-	router.HandleFunc("/{path:.*}", Get).Methods("GET")
-	router.HandleFunc("/{path:.*}", Put).Methods("PUT")
-	router.HandleFunc("/{path:.*}", Patch).Methods("PATCH")
-	router.HandleFunc("/{path:.*}", Delete).Methods("DELETE")
-	router.HandleFunc("/{path:.*}", Post).Methods("POST")
-
-	return middle
+	return master
 }
