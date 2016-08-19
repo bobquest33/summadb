@@ -71,6 +71,9 @@ func (p prepared) prepare(kind kind, path string, val []byte) prepared {
 func (p prepared) commit() (prepared, error) {
 	batch := db.NewBatch()
 
+	/* possibly trigger view function updates */
+	vrq := make(viewRecalcQueue)
+
 	/* lastseq */
 	updateSeq := getUpdateSeq()
 
@@ -89,7 +92,7 @@ func (p prepared) commit() (prepared, error) {
 			batch.Delete(DOC_STORE, []byte(path+"/_deleted"))
 			updateSeq++
 			op.rev = bumpPathInBatch(batch, path, op.currentrev, op.forcerev, updateSeq)
-
+			vrq.queue(path)
 		} else if op.kind == DELETE {
 			deleteChildrenForPathInBatch(batch, path, &updateSeq, true)
 
@@ -98,15 +101,16 @@ func (p prepared) commit() (prepared, error) {
 			batch.Put(DOC_STORE, []byte(path+"/_deleted"), []byte(nil))
 			updateSeq++
 			op.rev = bumpPathInBatch(batch, path, op.currentrev, op.forcerev, updateSeq)
-
+			vrq.queue(path)
 		} else if op.kind == UNDELETE {
 			batch.Delete(DOC_STORE, []byte(path+"/_deleted"))
 			updateSeq++
 			op.rev = bumpPathInBatch(batch, path, "", op.forcerev, updateSeq)
-
+			vrq.queue(path)
 		} else if op.kind == NOTHING {
 			updateSeq++
 			op.rev = bumpPathInBatch(batch, path, op.currentrev, op.forcerev, updateSeq)
+			vrq.queue(path)
 		}
 
 		/* there's no need to bump parent revs here, since all the parents were already
@@ -121,6 +125,11 @@ func (p prepared) commit() (prepared, error) {
 		log.Error("commit failed: ", err)
 		return nil, err
 	}
+
+	// emit changes
+	//      for views
+	go vrq.trigger()
+
 	return p, nil
 }
 

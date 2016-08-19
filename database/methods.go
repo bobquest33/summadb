@@ -3,7 +3,6 @@ package database
 import (
 	"fmt"
 	"reflect"
-	"strings"
 
 	"github.com/syndtr/goleveldb/leveldb/util"
 )
@@ -77,7 +76,7 @@ func GetTreeAt(basepath string) (map[string]interface{}, error) {
 			pathKeys := SplitKeys(key)
 
 			/* skip special values, those starting with "_" */
-			if strings.HasPrefix(pathKeys[len(pathKeys)-1], "_") {
+			if pathKeys[len(pathKeys)-1][0] == '_' {
 				continue
 			}
 
@@ -188,7 +187,8 @@ func saveObjectAt(txn prepared, base string, o map[string]interface{}) (prepared
 				/* actually set the value at this path */
 				txn = txn.prepare(SAVE, base, ToLevel(v))
 			} else if k == "_id" {
-				/* if there are no other values in this map, there is _id, so we should add something */
+				/* if there are no other values in this map,
+				   there is _id, so we should add something */
 				if _, exists := txn[base]; !exists {
 					txn = txn.prepare(SAVE, base, nil)
 				}
